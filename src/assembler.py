@@ -1,5 +1,6 @@
 import time
 import numpy as np
+import os
 
 
 class Assembler:
@@ -11,24 +12,26 @@ class Assembler:
     '''
 
     def __init__(self, **kwargs):
+
+        self.checkPrepare = False
         self.cpuMemorySize = None
-        file = None
-        self.machineCodeFile = None
+        self.targetDirectory = None
+        self.fileDirectory = None
+        self.content = None
+        self.machineCode = None
+        self.machineCodeHex = None
+        self.commentSeen = False
+        self.previewDetailed = False
+        self.previewLine = "All"
+        self.checkSingleLineCommand = False
+        self.checkConvertFile = False
+
         for key, value in kwargs.items():
             if key == 'file':
-                file = value
+                self.fileDirectory = value
             elif key == 'target':
-                self.machineCodeFile = value
+                self.targetDirectory = value
 
-        filecontent = ['contentarray']
-        with open(file, 'r') as file:
-            for line in file:
-                filecontent.append(line.split())
-            filecontent.pop(0)
-
-        self.content = filecontent
-        self.machineCode = None
-        self.commentSeen = False
         self.cpuVariables = {
             "$t0": "00000",
             "$t1": "00001",
@@ -47,6 +50,19 @@ class Assembler:
             "$s6": "00110",
             "$s7": "00111"
         }
+
+    def checkFiles(self):
+
+        if self.checkSingleLineCommand:
+            return True
+
+        try:
+            file = open(self.fileDirectory)
+            file.close()
+            return True
+
+        except:
+            return False
 
     def getISA(self, *line):
         '''
@@ -119,7 +135,7 @@ class Assembler:
 
     def fillInTheBlanks(self, line):
         '''
-        fillInTheBlanks function fill the lines with 'None' item to keep regularity 
+        fillInTheBlanks function fill the lines with 'None' item to keep regularity
         '''
         newLine = line.copy()
         size = len(line)
@@ -128,49 +144,120 @@ class Assembler:
                 newLine.append('None')
         return newLine
 
-    def convertLine(self, line):
+    def convertLineToBinary(self, line):
         '''
-        convertLine function pass lines through getISA function
+        convertLineToBinary function pass lines through getISA function
+
+        Returns String
         '''
         return self.getISA(*line)
+
+    def convertLineToHex(self, line):
+        '''
+        convertLineToHex function pass lines through getISA function
+
+        Returns String
+        '''
+
+        hexValue = np.base_repr(int(self.getISA(*line), 2), base=16)
+        hexValue = np.base_repr(
+            int(self.getISA(*line), 2), base=16, padding=(8-len(hexValue)))
+
+        return hexValue
 
     def convertFile(self):
         '''
         convertFile function converts all file, saves and returns it
+
+        Returns Boolean
         '''
-        for line in self.content:
-            self.machineCode = self.machineCode + self.convertLine(line)
-        return self.machineCode
+        if self.checkPrepare:
+
+            if not self.checkConvertFile:
+
+                self.machineCode = ["FirstElement"]
+                self.machineCodeHex = ["FirstElement"]
+                for line in self.content:
+                    self.machineCode.append(self.convertLineToBinary(line))
+                    self.machineCodeHex.append(self.convertLineToHex(line))
+                self.machineCode.pop(0)
+                self.machineCodeHex.pop(0)
+            else:
+                pass
+
+            self.checkConvertFile = True
+            return True
+        else:
+            return False
 
     def prepare(self):
         '''
         Definition: Prepare function transforms the given file into meaningful data
         saving it into array while passing it through inherit functions \n
         Usage: Object.prepare()
+
+        Returns Boolean
         '''
-        self.content = list(
-            map(lambda line: self.clearCommas(line), self.content))
-        self.content = list(
-            map(lambda line: self.placeVariables(line), self.content))
-        self.content = list(
-            map(lambda line: self.placeOffsets(line), self.content))
-        self.content = list(
-            map(lambda line: self.fillInTheBlanks(line), self.content))
+        if self.checkFiles():
+            if not self.checkSingleLineCommand:
+                fileContent = ['contentarray']
+                with open(self.fileDirectory, 'r') as file:
+                    for line in file:
+                        fileContent.append(line.split())
+                    fileContent.pop(0)
+                self.content = fileContent
+
+            self.content = list(
+                map(lambda line: self.clearCommas(line), self.content))
+            self.content = list(
+                map(lambda line: self.placeVariables(line), self.content))
+            self.content = list(
+                map(lambda line: self.placeOffsets(line), self.content))
+            self.content = list(
+                map(lambda line: self.fillInTheBlanks(line), self.content))
+
+            self.checkPrepare = True
+            return True
+        else:
+            self.checkPrepare = False
+            return False
 
     def preview(self, **kwargs):
         '''
         Definition: Preview function monitors required steps of process on terminal \n
-        Usage: Object.preview(line = ["all", lineNumber], detailed = [True, False])
+        Usage: Object.preview(
+            line = ["all", lineNumber], detailed = [True, False])
         '''
-        for key, value in kwargs.items():
-            if key == "detailed" and value == True:
+        if(self.checkPrepare):
+
+            self.convertFile()
+
+            for key, value in kwargs.items():
+                if key == "detailed":
+                    self.previewDetailed = value
+                if key == "line":
+                    self.previewLine = value
+
+            if self.previewDetailed:
                 for lineIndex, line in enumerate(self.content):
                     print(lineIndex, line)
-            elif key == "line" and value == "all":
+
+            elif self.previewLine == "all":
                 for lineIndex, line in enumerate(self.content):
-                    print(lineIndex, self.convertLine(line))
-            elif key == "line" and value != "all":
-                print(self.convertLine(self.content[value]))
+                    print(lineIndex, self.convertLineToBinary(line))
+
+            elif isinstance(self.previewLine, int):
+                print(self.convertLineToBinary(self.content[self.previewLine]))
+
+            else:
+                pass
+
+            for lineIndex, line in enumerate(self.machineCodeHex):
+                print(lineIndex, line)
+
+            return True
+        else:
+            return False
 
     def execute(self):
         '''
@@ -178,21 +265,82 @@ class Assembler:
         into given target file \n
         Usage: Object.execute()
         '''
-        with open(self.machineCodeFile, "w+") as file:
-            for lineIndex, line in enumerate(self.content):
-                file.write(str(lineIndex) + " " +
-                           str(self.convertLine(line)) + "\n")
+        if(self.checkPrepare):
+
+            self.convertFile()
+
+            with open(self.targetDirectory, "w+") as file:
+                for lineIndex, line in enumerate(self.machineCode):
+                    file.write(str(lineIndex) + " " + line + "\n")
+
+            return True
+        else:
+            return False
 
 
 def main():
-    assembler = Assembler(file='./assemblycode.txt',
-                          target='./machinecode.txt')
-    assembler.prepare()
-    assembler.preview(line="all", detailed=False)
-    assembler.execute()
+
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+    print("MIPS Assembler. Version is 1.0. It was developed by DFA")
+
+    assembler = Assembler()
+
+    while True:
+
+        command = input(">> ")
+        singleLineCommand = []
+        singleLineCommand.insert(0, list(command.split()))
+        command = list(command.split())
+
+        if command[0] == "call":
+            pass
+
+        elif command[0] == "file":
+            assembler.fileDirectory = BASE_DIR + '/' + command[1]
+
+        elif command[0] == "target":
+            assembler.targetDirectory = BASE_DIR + '/' + command[1]
+
+        elif command[0] == "execute":
+            if assembler.execute():
+                print("Executing process is done!")
+            else:
+                print('First, you need to use "prepare" command!')
+
+        elif command[0] == "prepare":
+            if assembler.prepare():
+                print("Preparing process is done!")
+            else:
+                print("There is a problem with files!")
+
+        elif command[0] == "preview":
+            if assembler.preview(line="all", detailed=False):
+                pass
+            else:
+                print('First, you need to use "prepare" command!')
+
+        elif command[0] == "clear":
+            os.system('cls' if os.name == 'nt' else 'clear')
+
+        elif command[0] == "exit":
+            exit()
+
+        else:
+            temp = Assembler()
+            temp.checkSingleLineCommand = True
+            temp.content = singleLineCommand
+            temp.prepare()
+
+            tempMachineCode = temp.convertLineToHex(temp.content[0])
+
+            if tempMachineCode:
+                print(tempMachineCode)
+            else:
+                print("Invalid command!")
+
+            del temp
 
 
 if __name__ == '__main__':
-    start_time = time.time()
     main()
-    print("--- %s seconds ---" % (time.time() - start_time))
