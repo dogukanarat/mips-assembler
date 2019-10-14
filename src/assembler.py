@@ -13,42 +13,49 @@ class Assembler:
 
     def __init__(self, **kwargs):
 
+        # defult values of object
         self.checkPrepare = False
         self.cpuMemorySize = None
+        self.cpuMemoryLocation = 0
         self.targetDirectory = None
-        self.fileDirectory = None
+        self.sourceDirectory = None
         self.content = None
+        self.contentLabels = ["None"]
         self.machineCode = None
         self.machineCodeHex = None
         self.commentSeen = False
         self.previewDetailed = False
         self.previewLine = "All"
         self.checkSingleLineCommand = False
-        self.checkConvertFile = False
+        self.checkConvertContent = False
+        self.executeFormatHex = True
+        self.executeFormatLineIndex = False
 
         for key, value in kwargs.items():
-            if key == 'file':
-                self.fileDirectory = value
+            if key == 'source':
+                self.sourceDirectory = value
             elif key == 'target':
                 self.targetDirectory = value
 
         self.cpuVariables = {
-            "$t0": "00000",
-            "$t1": "00001",
-            "$t2": "00010",
-            "$t3": "00011",
-            "$t4": "00100",
-            "$t5": "00101",
-            "$t6": "00110",
-            "$t7": "00111",
-            "$s0": "00000",
-            "$s1": "00001",
-            "$s2": "00010",
-            "$s3": "00011",
-            "$s4": "00100",
-            "$s5": "00101",
-            "$s6": "00110",
-            "$s7": "00111"
+            "$zero": "00000",
+            "$at": "00001",
+            "$t0": "01000",
+            "$t1": "01001",
+            "$t2": "01010",
+            "$t3": "01011",
+            "$t4": "01100",
+            "$t5": "01101",
+            "$t6": "01110",
+            "$t7": "01111",
+            "$s0": "10000",
+            "$s1": "10001",
+            "$s2": "10010",
+            "$s3": "10011",
+            "$s4": "10100",
+            "$s5": "10101",
+            "$s6": "10110",
+            "$s7": "10111"
         }
 
     def checkFiles(self):
@@ -57,7 +64,7 @@ class Assembler:
             return True
 
         try:
-            file = open(self.fileDirectory)
+            file = open(self.sourceDirectory)
             file.close()
             return True
 
@@ -85,9 +92,10 @@ class Assembler:
                 "sub": "000000{}{}{}00000100010".format(line[2], line[3], line[1]),
                 "subu": "000000{}{}{}00000100011".format(line[2], line[3], line[1]),
                 "sw": "101011{}{}{}".format(line[2][1], line[1], line[2][0]),
-                "lw": "100011{}{}{}".format(line[2][1], line[1], line[2][0])
+                "lw": "100011{}{}{}".format(line[2][1], line[1], line[2][0]),
+                "beq": "0000000000000000{}".format(self.convertLabel(line, 'I'))
             }
-            return instructions.get(line[0])
+            return instructions[line[0]]
         except:
             pass
 
@@ -144,6 +152,33 @@ class Assembler:
                 newLine.append('None')
         return newLine
 
+    def takeLabels(self):
+        for lineIndex, line in enumerate(self.content):
+            if line[0].find(":") != -1:
+                self.contentLabels.append(
+                    [lineIndex, line[0].replace(":", "")])
+                line.pop(0)
+                if len(line) < 1:
+                    self.content.pop(lineIndex)
+            else:
+                pass
+
+        if len(self.contentLabels) != 1:
+            self.contentLabels.pop(0)
+
+    def convertLabel(self, line, type):
+
+        lineIndex = np.binary_repr(
+            int(self.content.index(list(line))), width=16)
+
+        if type == 'I':
+            return lineIndex
+            # return '1111111111111111'
+        elif type == 'J':
+            return '11111111111111111111111111'
+        else:
+            return '0'
+
     def convertLineToBinary(self, line):
         '''
         convertLineToBinary function pass lines through getISA function
@@ -159,21 +194,24 @@ class Assembler:
         Returns String
         '''
 
-        hexValue = np.base_repr(int(self.getISA(*line), 2), base=16)
-        hexValue = np.base_repr(
-            int(self.getISA(*line), 2), base=16, padding=(8-len(hexValue)))
+        try:
+            hexValue = np.base_repr(int(self.getISA(*line), 2), base=16)
+            hexValue = np.base_repr(
+                int(self.getISA(*line), 2), base=16, padding=(8-len(hexValue)))
+            return hexValue
+        except:
+            print(line)
+            return '1'
 
-        return hexValue
-
-    def convertFile(self):
+    def convertContent(self):
         '''
-        convertFile function converts all file, saves and returns it
+        convertContent function converts all content, saves it
 
         Returns Boolean
         '''
         if self.checkPrepare:
 
-            if not self.checkConvertFile:
+            if not self.checkConvertContent:
 
                 self.machineCode = ["FirstElement"]
                 self.machineCodeHex = ["FirstElement"]
@@ -185,7 +223,7 @@ class Assembler:
             else:
                 pass
 
-            self.checkConvertFile = True
+            self.checkConvertContent = True
             return True
         else:
             return False
@@ -199,14 +237,24 @@ class Assembler:
         Returns Boolean
         '''
         if self.checkFiles():
+
+            # reading the source file
             if not self.checkSingleLineCommand:
                 fileContent = ['contentarray']
-                with open(self.fileDirectory, 'r') as file:
+                with open(self.sourceDirectory, 'r') as file:
                     for line in file:
                         fileContent.append(line.split())
                     fileContent.pop(0)
                 self.content = fileContent
 
+            # taking program memory location from the file if exist
+            if self.content[0][0].find('0x') != -1:
+                self.cpuMemoryLocation = self.content[0][0]
+                self.content.pop(0)
+
+            self.takeLabels()
+
+            # preparing content for execution
             self.content = list(
                 map(lambda line: self.clearCommas(line), self.content))
             self.content = list(
@@ -230,7 +278,7 @@ class Assembler:
         '''
         if(self.checkPrepare):
 
-            self.convertFile()
+            self.convertContent()
 
             for key, value in kwargs.items():
                 if key == "detailed":
@@ -238,6 +286,7 @@ class Assembler:
                 if key == "line":
                     self.previewLine = value
 
+            print("Memory Location: ", self.cpuMemoryLocation)
             if self.previewDetailed:
                 for lineIndex, line in enumerate(self.content):
                     print(lineIndex, line)
@@ -267,11 +316,15 @@ class Assembler:
         '''
         if(self.checkPrepare):
 
-            self.convertFile()
+            self.convertContent()
 
             with open(self.targetDirectory, "w+") as file:
-                for lineIndex, line in enumerate(self.machineCode):
-                    file.write(str(lineIndex) + " " + line + "\n")
+                executeContent = self.machineCodeHex if self.executeFormatHex else self.machineCode
+                for lineIndex, line in enumerate(executeContent):
+                    if self.executeFormatLineIndex:
+                        file.write(str(lineIndex) + " " + line + "\n")
+                    else:
+                        file.write(line + "\n")
 
             return True
         else:
@@ -293,11 +346,16 @@ def main():
         singleLineCommand.insert(0, list(command.split()))
         command = list(command.split())
 
-        if command[0] == "call":
-            pass
+        if command[0] == "debugmode":
+            assembler.sourceDirectory = BASE_DIR + '/' + "code.txt"
+            assembler.targetDirectory = BASE_DIR + '/' + "result.txt"
+            assembler.prepare()
+            assembler.execute()
+            assembler.preview(detailed=True)
+            exit()
 
-        elif command[0] == "file":
-            assembler.fileDirectory = BASE_DIR + '/' + command[1]
+        elif command[0] == "source":
+            assembler.sourceDirectory = BASE_DIR + '/' + command[1]
 
         elif command[0] == "target":
             assembler.targetDirectory = BASE_DIR + '/' + command[1]
@@ -315,7 +373,7 @@ def main():
                 print("There is a problem with files!")
 
         elif command[0] == "preview":
-            if assembler.preview(line="all", detailed=False):
+            if assembler.preview(detailed=False):
                 pass
             else:
                 print('First, you need to use "prepare" command!')
