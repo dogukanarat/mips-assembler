@@ -8,7 +8,7 @@ sw $s0, 0($sp)# save $s0 on stack
 
 move $s0, $zero# i = 0
 
-addi $s1, $s0, –1# j = i – 1
+addi $s1, $s0, -1# j = i – 1
 for2tst:slti $t0, $s1,0 #reg$t0=1if$s1<0(j<0)
 bne $t0, $zero, exit2# go to exit2 if $s1 < 0 (j < 0)
 sll $t1, $s1, 2# reg $t1 = j * 4

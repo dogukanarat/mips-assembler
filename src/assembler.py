@@ -10,7 +10,7 @@ warnings.filterwarnings("ignore")
 '''
 Next Enhancements:
 1. Add a feature that recognize binary and hex value in imm and offset
-2. Add a support unsigned conversion
+2. Add pseudo instruction 'move'
 '''
 
 
@@ -277,7 +277,6 @@ class Assembler:
                 int(self.getISA(*line), 2), base=16, padding=(8-len(hexValue)))
             return hexValue
         except:
-            print(line)
             return 'errorAtHexConversion'
 
     def convertContent(self):
