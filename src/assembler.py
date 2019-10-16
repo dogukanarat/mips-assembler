@@ -1,6 +1,17 @@
 import time
 import numpy as np
 import os
+import warnings
+import string
+import re
+
+warnings.filterwarnings("ignore")
+
+'''
+Next Enhancements:
+1. Add a feature that recognize binary and hex value in imm and offset
+2. Add a support unsigned conversion
+'''
 
 
 class Assembler:
@@ -15,8 +26,8 @@ class Assembler:
 
         # defult values of object
         self.checkPrepare = False
-        self.cpuMemorySize = None
-        self.cpuMemoryLocation = 0
+        self.programMemorySize = None
+        self.programMemoryLocation = 0
         self.targetDirectory = None
         self.sourceDirectory = None
         self.content = None
@@ -25,11 +36,13 @@ class Assembler:
         self.machineCodeHex = None
         self.commentSeen = False
         self.previewDetailed = False
-        self.previewLine = "All"
+        self.previewLine = "all"
+        self.previewHex = False
         self.checkSingleLineCommand = False
         self.checkConvertContent = False
         self.executeFormatHex = True
         self.executeFormatLineIndex = False
+        self.errorMessage = None
 
         for key, value in kwargs.items():
             if key == 'source':
@@ -37,9 +50,15 @@ class Assembler:
             elif key == 'target':
                 self.targetDirectory = value
 
-        self.cpuVariables = {
+        self.registerFile = {
             "$zero": "00000",
             "$at": "00001",
+            "$v0": "00010",
+            "$v1": "00011",
+            "$a0": "00100",
+            "$a1": "00101",
+            "$a2": "00110",
+            "$a3": "00111",
             "$t0": "01000",
             "$t1": "01001",
             "$t2": "01010",
@@ -55,19 +74,24 @@ class Assembler:
             "$s4": "10100",
             "$s5": "10101",
             "$s6": "10110",
-            "$s7": "10111"
+            "$s7": "10111",
+            "$t8": "11000",
+            "$t9": "11001",
+            "$k0": "11010",
+            "$k1": "11011",
+            "$gp": "11100",
+            "$sp": "11101",
+            "$fp": "11110",
+            "$ra": "11111"
         }
 
     def checkFiles(self):
-
         if self.checkSingleLineCommand:
             return True
-
         try:
             file = open(self.sourceDirectory)
             file.close()
             return True
-
         except:
             return False
 
@@ -78,22 +102,49 @@ class Assembler:
         try:
             instructions = {
                 "add": "000000{}{}{}00000100000".format(line[2], line[3], line[1]),
+                "addi": "001000{}{}{}".format(line[2], line[1], self.convertSignedBinary(line[3], 16)),
+                "addiu": "001001{}{}{}".format(line[2], line[1], self.convertSignedBinary(line[3], 16)),
                 "addu": "000000{}{}{}00000100001".format(line[2], line[3], line[1]),
                 "and": "000000{}{}{}00000100100".format(line[2], line[3], line[1]),
+                "andi": "001100{}{}{}".format(line[2], line[1], self.convertSignedBinary(line[3], 16)),
+                "beq": "000100{}{}{}".format(line[1], line[2], self.convertLabel(line, 'I')),
+                "bgez": "000001{}00001{}".format(line[1], self.convertLabel(line, 'I')),
+                "bgezal": "000001{}10001{}".format(line[1], self.convertLabel(line, 'I')),
+                "bgtz": "000111{}00000{}".format(line[1], self.convertLabel(line, 'I')),
+                "blez": "000110{}00000{}".format(line[1], self.convertLabel(line, 'I')),
+                "bltz": "000001{}00000{}".format(line[1], self.convertLabel(line, 'I')),
+                "bltzal": "000001{}10000{}".format(line[1], self.convertLabel(line, 'I')),
+                "bne": "000101{}{}{}".format(line[1], line[2], self.convertLabel(line, 'I')),
+                "div": "000000{}{}0000000000011010".format(line[1], line[2]),
+                "divu": "000000{}{}0000000000011011".format(line[1], line[2]),
+                "j": "000010{}".format(self.convertLabel(line, 'J')),
+                "jal": "000011{}".format(self.convertLabel(line, 'J')),
+                "jr": "000011{}000000000000000001000".format(line[1]),
+                "lb": "100011{}{}{}".format(line[2][1], line[1], line[2][0]),
+                "lui": "10001100000{}{}".format(line[1], self.convertSignedBinary(line[2], 16)),
+                "lw": "100011{}{}{}".format(line[2][1], line[1], line[2][0]),
                 "mfhi": "0000000000000000{}00000010000".format(line[1]),
                 "mflo": "0000000000000000{}00000010010".format(line[1]),
                 "mult": "000000{}{}0000000000011000".format(line[1], line[2]),
                 "multu": "000000{}{}0000000000011001".format(line[1], line[2]),
                 "noop": "00000000000000000000000000000000",
                 "or": "000000{}{}{}00000100101".format(line[2], line[3], line[1]),
+                "ori": "0001101{}{}{}".format(line[2], line[1], self.convertSignedBinary(line[3], 16)),
+                "sb": "101000{}{}{}".format(line[2][1], line[1], line[2][0]),
+                "sll": "00000000000{}{}{}000000".format(line[2], line[1], self.convertSignedBinary(line[3], 5)),
+                "sllv": "000000{}{}{}00000000100".format(line[3], line[2], line[1]),
                 "slt": "000000{}{}{}00000101010".format(line[2], line[3], line[1]),
+                "slti": "001010{}{}{}".format(line[2], line[1], self.convertSignedBinary(line[3], 16)),
+                "sltiu": "001011{}{}{}".format(line[2], line[1], self.convertSignedBinary(line[3], 16)),
                 "sltu": "000000{}{}{}00000101011".format(line[2], line[3], line[1]),
+                "sra": "00000000000{}{}{}000010".format(line[2], line[1], self.convertSignedBinary(line[3], 5)),
                 "srlv": "000000{}{}{}00000000110".format(line[2], line[3], line[1]),
                 "sub": "000000{}{}{}00000100010".format(line[2], line[3], line[1]),
                 "subu": "000000{}{}{}00000100011".format(line[2], line[3], line[1]),
                 "sw": "101011{}{}{}".format(line[2][1], line[1], line[2][0]),
-                "lw": "100011{}{}{}".format(line[2][1], line[1], line[2][0]),
-                "beq": "0000000000000000{}".format(self.convertLabel(line, 'I'))
+                "syscall": "00000000000000000000000000001100",
+                "xor": "000000{}{}{}00000100110".format(line[2], line[3], line[1]),
+                "xori": "00111000000{}{}{}".format(line[2], line[1], self.convertSignedBinary(line[3], 16))
             }
             return instructions[line[0]]
         except:
@@ -117,9 +168,15 @@ class Assembler:
         placeVariables function convert the tokens in the given line into CPU varialbe
         if it is a CPU variable. Otherwise, turns the original value
         '''
-        return list(map(lambda element: self.cpuVariables.get(element) if self.cpuVariables.get(element) != None else element, line))
+        return list(map(lambda element: self.registerFile.get(element) if self.registerFile.get(element) != None else element, line))
 
-    def convertOffset(self, token):
+    def convertSignedBinary(self, number, width):
+        try:
+            return np.binary_repr(int(number), width=width)
+        except:
+            return False
+
+    def convertOffset(self, token, *line):
         '''
         convertOffset function convert the tokens into array while placing its memory address
         and decimal offset number to binary number
@@ -132,14 +189,14 @@ class Assembler:
             tempToken = list(tempToken.split())
             newToken = []
             newToken.insert(0, np.binary_repr(int(tempToken[0]), width=16))
-            newToken.insert(1, self.cpuVariables.get(tempToken[1]))
+            newToken.insert(1, self.registerFile.get(tempToken[1]))
             return newToken
 
     def placeOffsets(self, line):
         '''
         placeOffsets function pass tokens of the lines trough convertOffset function
         '''
-        return list(map(lambda element: self.convertOffset(element), line))
+        return list(map(lambda element: self.convertOffset(element, *line), line))
 
     def fillInTheBlanks(self, line):
         '''
@@ -153,6 +210,12 @@ class Assembler:
         return newLine
 
     def takeLabels(self):
+        '''
+        takeLabels function takes the label in the content and stores it if exits
+
+        Returns None
+        '''
+
         for lineIndex, line in enumerate(self.content):
             if line[0].find(":") != -1:
                 self.contentLabels.append(
@@ -166,18 +229,31 @@ class Assembler:
         if len(self.contentLabels) != 1:
             self.contentLabels.pop(0)
 
+        return None
+
     def convertLabel(self, line, type):
+        '''
+        convertLabel function convert labels in the instruction to binary values
 
-        lineIndex = np.binary_repr(
-            int(self.content.index(list(line))), width=16)
+        Returns String
+        '''
 
-        if type == 'I':
-            return lineIndex
-            # return '1111111111111111'
-        elif type == 'J':
-            return '11111111111111111111111111'
-        else:
-            return '0'
+        try:
+            lineIndex = int(self.content.index(list(line)))
+            labelIndex = None
+            calculatedIndex = None
+            if type == 'I':
+                for index, label in self.contentLabels:
+                    if label == line[3]:
+                        labelIndex = index
+                calculatedIndex = labelIndex - lineIndex - 1
+                return self.convertSignedBinary(str(calculatedIndex), 16)
+            elif type == 'J':
+                return '11111111111111111111111111'
+            else:
+                return '0'
+        except:
+            return False
 
     def convertLineToBinary(self, line):
         '''
@@ -185,6 +261,7 @@ class Assembler:
 
         Returns String
         '''
+
         return self.getISA(*line)
 
     def convertLineToHex(self, line):
@@ -201,7 +278,7 @@ class Assembler:
             return hexValue
         except:
             print(line)
-            return '1'
+            return 'errorAtHexConversion'
 
     def convertContent(self):
         '''
@@ -242,14 +319,48 @@ class Assembler:
             if not self.checkSingleLineCommand:
                 fileContent = ['contentarray']
                 with open(self.sourceDirectory, 'r') as file:
-                    for line in file:
+
+                    lines = filter(None, (line.rstrip() for line in file))
+
+                    jInstruction = False
+                    jalInstruction = False
+
+                    for line in lines:
+                        line = ''.join(re.findall(
+                            "^[a-zA-Z0-9,#:$\(\)\+\-\s]+", line))
+
+                        line = line.lower()
+
+                        if line[:2] == 'j ':
+                            jInstruction = True
+                            line = line[2:]
+                        elif line[:4] == 'jal ':
+                            jalInstruction = True
+                            line = line[4:]
+                        else:
+                            pass
+
+                        line = line.replace(' ', '').replace(
+                            ':', ': ').replace(',', ', ').replace('#', ' # ').replace('$', ' $').replace('( $', '($')
+
+                        if jInstruction:
+                            line = 'j ' + line
+                        elif jalInstruction:
+                            line = 'jal ' + line
+                        else:
+                            pass
+
+                        jInstruction = False
+                        jalInstruction = False
+
                         fileContent.append(line.split())
+
                     fileContent.pop(0)
                 self.content = fileContent
 
             # taking program memory location from the file if exist
             if self.content[0][0].find('0x') != -1:
-                self.cpuMemoryLocation = self.content[0][0]
+                self.programMemoryLocation = self.content[0][0]
                 self.content.pop(0)
 
             self.takeLabels()
@@ -285,24 +396,32 @@ class Assembler:
                     self.previewDetailed = value
                 if key == "line":
                     self.previewLine = value
+                if key == "hex":
+                    self.previewHex = value
 
-            print("Memory Location: ", self.cpuMemoryLocation)
+            print("Program Memory Location: ", self.programMemoryLocation)
+
+            if self.errorMessage:
+                print("Error Message: ", self.errorMessage)
+
             if self.previewDetailed:
+                print("------------- Detailed View")
                 for lineIndex, line in enumerate(self.content):
                     print(lineIndex, line)
 
-            elif self.previewLine == "all":
-                for lineIndex, line in enumerate(self.content):
-                    print(lineIndex, self.convertLineToBinary(line))
+            if self.previewHex:
+                previewContent = self.machineCodeHex
+            else:
+                previewContent = self.machineCode
 
+            print("------------- Assembled Code")
+            if self.previewLine == "all":
+                for lineIndex, line in enumerate(previewContent):
+                    print(lineIndex, line)
             elif isinstance(self.previewLine, int):
-                print(self.convertLineToBinary(self.content[self.previewLine]))
-
+                print(previewContent[self.previewLine])
             else:
                 pass
-
-            for lineIndex, line in enumerate(self.machineCodeHex):
-                print(lineIndex, line)
 
             return True
         else:
@@ -347,8 +466,8 @@ def main():
         command = list(command.split())
 
         if command[0] == "debugmode":
-            assembler.sourceDirectory = BASE_DIR + '/' + "code.txt"
-            assembler.targetDirectory = BASE_DIR + '/' + "result.txt"
+            assembler.sourceDirectory = BASE_DIR + '/' + "code.src"
+            assembler.targetDirectory = BASE_DIR + '/' + "result.obj"
             assembler.prepare()
             assembler.execute()
             assembler.preview(detailed=True)
