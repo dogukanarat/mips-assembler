@@ -37,7 +37,7 @@ class Assembler:
         self.commentSeen = False
         self.previewDetailed = False
         self.previewLine = "all"
-        self.previewHex = False
+        self.previewHex = True
         self.checkSingleLineCommand = False
         self.checkConvertContent = False
         self.executeFormatHex = True
@@ -242,18 +242,48 @@ class Assembler:
             lineIndex = int(self.content.index(list(line)))
             labelIndex = None
             calculatedIndex = None
+
             if type == 'I':
+
                 for index, label in self.contentLabels:
                     if label == line[3]:
                         labelIndex = index
                 calculatedIndex = labelIndex - lineIndex - 1
                 return self.convertSignedBinary(str(calculatedIndex), 16)
+
             elif type == 'J':
-                return '11111111111111111111111111'
+
+                for index, label in self.contentLabels:
+                    if label == line[1]:
+                        labelIndex = index
+                calculatedProgramMemoryLocation = self.programMemoryLocation[2:]
+                calculatedProgramMemoryLocation = int(
+                    calculatedProgramMemoryLocation, 16)
+
+                calculatedIndex = calculatedProgramMemoryLocation + 4 * labelIndex
+                calculatedIndex = np.base_repr(calculatedIndex, base=2)
+                calculatedIndex = np.base_repr(
+                    int(calculatedIndex, 2), base=2, padding=26-len(calculatedIndex))
+                calculatedIndex = calculatedIndex[4:-2]
+
+                return calculatedIndex
             else:
                 return '0'
         except:
             return False
+
+    def convertPseudoInstruction(self, line):
+        tempLine = ['None']
+        if line[0] == 'move':
+            tempLine.append('add')
+            tempLine.append(line[1])
+            tempLine.append(line[2])
+            tempLine.append('00000')
+            tempLine.pop(0)
+        else:
+            tempLine = line
+
+        return tempLine
 
     def convertLineToBinary(self, line):
         '''
@@ -373,6 +403,8 @@ class Assembler:
                 map(lambda line: self.placeOffsets(line), self.content))
             self.content = list(
                 map(lambda line: self.fillInTheBlanks(line), self.content))
+            self.content = list(
+                map(lambda line: self.convertPseudoInstruction(line), self.content))
 
             self.checkPrepare = True
             return True
@@ -468,6 +500,7 @@ def main():
             assembler.sourceDirectory = BASE_DIR + '/' + "code.src"
             assembler.targetDirectory = BASE_DIR + '/' + "result.obj"
             assembler.prepare()
+            print(assembler.contentLabels, assembler.errorMessage)
             assembler.execute()
             assembler.preview(detailed=True)
             exit()
