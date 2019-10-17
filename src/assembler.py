@@ -13,7 +13,7 @@ class Assembler:
     Definition: Assembler object takes a text file that includes MIPS instructions and
     turn it into machine code and save it as a file
 
-    Usage: Object = Assembler(file=FILE_SOURCE, target=FILE_TARGET)
+    Usage: Object = Assembler(source=SOURCE_FILE, target=TARGET_FILE)
     '''
 
     def __init__(self, **kwargs):
@@ -37,6 +37,11 @@ class Assembler:
         self.executeFormatHex = True
         self.executeFormatLineIndex = False
         self.errorMessage = None
+        self.author = "DFA"
+        self.name = "Kompaq"
+        self.version = "1.0"
+        self.description = self.name + " Assembler. Version is " + \
+            self.version + ". It was developed by " + self.author
 
         for key, value in kwargs.items():
             if key == 'source':
@@ -80,6 +85,12 @@ class Assembler:
         }
 
     def checkFiles(self):
+        '''
+        checkFiles function check if the input and output files are avaible 
+
+        return Boolean
+        '''
+
         if self.checkSingleLineCommand:
             return True
         try:
@@ -92,6 +103,8 @@ class Assembler:
     def getISA(self, *line):
         '''
         getISA function keeps all of MIPS instruction and returns given line as machine code
+
+        return String
         '''
         try:
             instructions = {
@@ -147,6 +160,8 @@ class Assembler:
     def clearCommas(self, line):
         '''
         clearCommas function clears the commas in the given line
+
+        return Line(List)
         '''
         resultantLine = ["First"]
         for token in line:
@@ -161,10 +176,20 @@ class Assembler:
         '''
         placeVariables function convert the tokens in the given line into CPU varialbe
         if it is a CPU variable. Otherwise, turns the original value
+
+        return Line(List)
         '''
+
         return list(map(lambda element: self.registerFile.get(element) if self.registerFile.get(element) != None else element, line))
 
     def convertSignedBinary(self, number, width):
+        '''
+        placeVariables function convert the tokens in the given line into CPU varialbe
+        if it is a CPU variable. Otherwise, turns the original value
+
+        return Token(String or None)
+        '''
+
         try:
             return np.binary_repr(int(number), width=width)
         except:
@@ -174,7 +199,10 @@ class Assembler:
         '''
         convertOffset function convert the tokens into array while placing its memory address
         and decimal offset number to binary number
+
+        return Token(String or List)
         '''
+
         tempToken = token.replace('(', ' ').replace(')', '')
 
         if tempToken == token:
@@ -189,6 +217,8 @@ class Assembler:
     def placeOffsets(self, line):
         '''
         placeOffsets function pass tokens of the lines trough convertOffset function
+
+        return Line(List)
         '''
         return list(map(lambda element: self.convertOffset(element, *line), line))
 
@@ -267,6 +297,12 @@ class Assembler:
             return False
 
     def convertPseudoInstruction(self, line):
+        '''
+        convertPseudoInstruction function convert the pseudo instruction to possible MIPS instruction if exits
+
+        Returns Line(List)
+        '''
+
         tempLine = ['None']
         if line[0] == 'move':
             tempLine.append('add')
@@ -479,9 +515,8 @@ def main():
 
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-    print("MIPS Assembler. Version is 1.0. It was developed by DFA")
-
     assembler = Assembler()
+    print(assembler.description)
 
     while True:
 
