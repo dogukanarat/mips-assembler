@@ -7,12 +7,6 @@ import re
 
 warnings.filterwarnings("ignore")
 
-'''
-Next Enhancements:
-1. Add a feature that recognize binary and hex value in imm and offset
-2. Add pseudo instruction 'move'
-'''
-
 
 class Assembler:
     '''
@@ -119,7 +113,7 @@ class Assembler:
                 "divu": "000000{}{}0000000000011011".format(line[1], line[2]),
                 "j": "000010{}".format(self.convertLabel(line, 'J')),
                 "jal": "000011{}".format(self.convertLabel(line, 'J')),
-                "jr": "000011{}000000000000000001000".format(line[1]),
+                "jr": "000000{}000000000000000001000".format(line[1]),
                 "lb": "100011{}{}{}".format(line[2][1], line[1], line[2][0]),
                 "lui": "10001100000{}{}".format(line[1], self.convertSignedBinary(line[2], 16)),
                 "lw": "100011{}{}{}".format(line[2][1], line[1], line[2][0]),
@@ -356,7 +350,7 @@ class Assembler:
 
                     for line in lines:
                         line = ''.join(re.findall(
-                            "^[a-zA-Z0-9,#:$\(\)\+\-\s]+", line))
+                            r"^[a-zA-Z0-9,#:$\(\)\+\-\s]+", line))
 
                         line = line.lower()
 
