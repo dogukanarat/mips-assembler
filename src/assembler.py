@@ -37,6 +37,7 @@ class Assembler:
         self.executeFormatHex = True
         self.executeFormatLineIndex = False
         self.errorMessage = None
+        self.labelCount = 0
         self.author = "DFA"
         self.name = "Kompaq"
         self.version = "1.0"
@@ -50,6 +51,7 @@ class Assembler:
                 self.targetDirectory = value
 
         self.registerFile = {
+            "$0": "00000",
             "$zero": "00000",
             "$at": "00001",
             "$v0": "00010",
@@ -242,9 +244,12 @@ class Assembler:
 
         for lineIndex, line in enumerate(self.content):
             if line[0].find(":") != -1:
+
                 self.contentLabels.append(
                     [lineIndex, line[0].replace(":", "")])
+
                 line.pop(0)
+
                 if len(line) < 1:
                     self.content.pop(lineIndex)
             else:
@@ -287,7 +292,7 @@ class Assembler:
                 calculatedIndex = calculatedProgramMemoryLocation + 4 * labelIndex
                 calculatedIndex = np.base_repr(calculatedIndex, base=2)
                 calculatedIndex = np.base_repr(
-                    int(calculatedIndex, 2), base=2, padding=26-len(calculatedIndex))
+                    int(calculatedIndex, 2), base=2, padding=32-len(calculatedIndex))
                 calculatedIndex = calculatedIndex[4:-2]
 
                 return calculatedIndex
@@ -305,10 +310,10 @@ class Assembler:
 
         tempLine = ['None']
         if line[0] == 'move':
-            tempLine.append('add')
+            tempLine.append('addu')
             tempLine.append(line[1])
-            tempLine.append(line[2])
             tempLine.append('00000')
+            tempLine.append(line[2])
             tempLine.pop(0)
         else:
             tempLine = line
@@ -421,8 +426,10 @@ class Assembler:
             if self.content[0][0].find('0x') != -1:
                 self.programMemoryLocation = self.content[0][0]
                 self.content.pop(0)
+            else:
+                self.programMemoryLocation = '0x00000000'
 
-            self.takeLabels()
+            # self.makeRegularLabel()
 
             # preparing content for execution
             self.content = list(
@@ -431,6 +438,9 @@ class Assembler:
                 map(lambda line: self.placeVariables(line), self.content))
             self.content = list(
                 map(lambda line: self.placeOffsets(line), self.content))
+
+            self.takeLabels()
+
             self.content = list(
                 map(lambda line: self.fillInTheBlanks(line), self.content))
             self.content = list(
@@ -459,6 +469,8 @@ class Assembler:
                     self.previewLine = value
                 if key == "hex":
                     self.previewHex = value
+
+            # print(self.contentLabels)
 
             print("Program Memory Location: ", self.programMemoryLocation)
 
