@@ -31,7 +31,7 @@ class Assembler:
         self.commentSeen = False
         self.previewDetailed = False
         self.previewLine = "all"
-        self.previewHex = True
+        self.previewHex = False
         self.checkSingleLineCommand = False
         self.checkConvertContent = False
         self.executeFormatHex = True
@@ -478,7 +478,7 @@ class Assembler:
                 print("Error Message: ", self.errorMessage)
 
             if self.previewDetailed:
-                print("------------- Detailed View")
+                print("------------- Detailed View -------------")
                 for lineIndex, line in enumerate(self.content):
                     print(lineIndex, line)
 
@@ -487,7 +487,7 @@ class Assembler:
             else:
                 previewContent = self.machineCode
 
-            print("------------- Assembled Code")
+            print("------------- Assembled Code -------------")
             if self.previewLine == "all":
                 for lineIndex, line in enumerate(previewContent):
                     print(lineIndex, line)
@@ -530,6 +530,38 @@ def main():
     assembler = Assembler()
     print(assembler.description)
 
+    # Convertion Type Selection
+
+    convertionType = None
+
+    while True:
+        convertionType = input(
+            "Output convertion Hex or Binary. Type 'h' for Hex or 'b' for Binary: ")
+        if convertionType == "b":
+            convertionType = 1
+            break
+        elif convertionType == "h":
+            convertionType = 0
+            break
+        else:
+            None
+
+    print("Convertion type is {}\n".format(
+        "Binary" if convertionType == 1 else "Hex"))
+    if convertionType == 1:
+        assembler.executeFormatHex = False
+        assembler.previewHex = False
+    else:
+        assembler.executeFormatHex = True
+        assembler.previewHex = True
+
+    print("Assemble file should be in the direction of the script with the name of 'code.src'",
+          "\nAlso, there should be 'result.obj' file beside that.",
+          "\n\nType 'convert' for the conversion to machine code",
+          "\nType any instruction directly for the line execution\n")
+
+    # Program Flow
+
     while True:
 
         command = input(">> ")
@@ -537,13 +569,12 @@ def main():
         singleLineCommand.insert(0, list(command.split()))
         command = list(command.split())
 
-        if command[0] == "debugmode":
+        if command[0] == "convert":
             assembler.sourceDirectory = BASE_DIR + '/' + "code.src"
             assembler.targetDirectory = BASE_DIR + '/' + "result.obj"
             assembler.prepare()
-            print(assembler.contentLabels, assembler.errorMessage)
             assembler.execute()
-            assembler.preview(detailed=True)
+            assembler.preview(detailed=False)
             exit()
 
         elif command[0] == "source":
