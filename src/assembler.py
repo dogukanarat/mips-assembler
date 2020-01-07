@@ -570,12 +570,15 @@ def main():
         command = list(command.split())
 
         if command[0] == "convert":
-            assembler.sourceDirectory = BASE_DIR + '/' + "code.src"
-            assembler.targetDirectory = BASE_DIR + '/' + "result.obj"
-            assembler.prepare()
-            assembler.execute()
-            assembler.preview(detailed=False)
-            exit()
+            try:
+                assembler.sourceDirectory = BASE_DIR + '/' + "code.src"
+                assembler.targetDirectory = BASE_DIR + '/' + "result.obj"
+                assembler.prepare()
+                assembler.execute()
+                assembler.preview(detailed=False)
+            except:
+                print("There is a problem!")
+            # exit()
 
         elif command[0] == "source":
             assembler.sourceDirectory = BASE_DIR + '/' + command[1]
